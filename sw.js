@@ -1,4 +1,4 @@
-const CACHE_NAME = "yizhibai-diet-loop-v1";
+const CACHE_NAME = "yizhibai-diet-loop-v2";
 const ASSETS = [
   "./",
   "./index.html",

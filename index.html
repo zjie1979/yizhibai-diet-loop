@@ -17,11 +17,31 @@
   <main class="app-shell">
     <header class="topbar">
       <div>
-        <p class="eyebrow">非官方整理版</p>
+        <p class="eyebrow">公开资料整理版</p>
         <h1>一只白</h1>
       </div>
       <button class="icon-button" id="undoBtn" type="button" aria-label="撤回上一天">↶</button>
     </header>
+
+    <section class="notice-panel">
+      <strong>已过滤甜品、汤、单品推荐，只保留可作为全天执行的减肥或调整餐单。</strong>
+      <p>可以先看详情，再把想吃的餐单加入循环；打完当前餐单后自动进入下一个所选餐单。</p>
+    </section>
+
+    <section class="stat-grid" aria-label="餐单统计">
+      <div>
+        <span>可打卡餐单</span>
+        <strong id="availableCount">0</strong>
+      </div>
+      <div>
+        <span>已选循环</span>
+        <strong id="selectedCount">0</strong>
+      </div>
+      <div>
+        <span>完成记录</span>
+        <strong id="historyTotal">0</strong>
+      </div>
+    </section>
 
     <section class="cycle-panel">
       <div>
@@ -36,19 +56,30 @@
 
     <section class="plan-panel">
       <div class="section-head">
-        <h2 id="dayName">今日餐单</h2>
+        <h2 id="activeTitle">今日打卡</h2>
         <span id="slotCount">0/0</span>
       </div>
+      <p class="panel-sub" id="activeSub">先从餐单库选择要循环的餐单。</p>
       <div class="meal-list" id="mealList"></div>
       <p class="auto-note" id="autoNote">打完所有餐次后，会短暂停留并自动进入下一天。</p>
     </section>
 
     <section>
       <div class="section-head">
-        <h2>循环餐单</h2>
-        <button class="text-button" id="resetBtn" type="button">重置</button>
+        <h2>全部餐单可选择</h2>
+        <button class="text-button" id="addAllBtn" type="button">全部加入</button>
       </div>
-      <div class="preview-list" id="previewList"></div>
+      <div class="filter-bar" id="filterBar" aria-label="餐单分类"></div>
+      <div class="detail-panel" id="detailPanel" aria-live="polite"></div>
+      <div class="plan-list" id="planList"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>我的循环</h2>
+        <button class="text-button" id="clearCycleBtn" type="button">清空已选</button>
+      </div>
+      <div class="cycle-list" id="cycleList"></div>
     </section>
 
     <section>
@@ -59,9 +90,19 @@
       <div class="history-list" id="historyList"></div>
     </section>
 
+    <section>
+      <div class="section-head">
+        <h2>待补正文</h2>
+        <span id="pendingCount">0 个</span>
+      </div>
+      <div class="pending-list" id="pendingList"></div>
+    </section>
+
     <section class="source-panel">
       <h2>来源与边界</h2>
-      <p>根据公开网页中“一只白”相关减肥餐单转述整理为可打卡版本，非博主官方授权。餐单偏短期低热量，身体不舒服、经期明显不适、备孕/孕期/哺乳期、疾病或用药期间不要硬跟。</p>
+      <p>根据公开网页中“一只白”相关减肥餐单转述、公开打卡记录和用户提供的小红书主页线索整理，非博主官方授权。能看到完整正文的做成可打卡餐单；只看到标题或外卖单品推荐的放入待补正文。</p>
+      <p>餐单偏短期低热量，身体不舒服、经期明显不适、备孕/孕期/哺乳期、疾病或用药期间不要硬跟。</p>
+      <button class="text-button danger" id="resetBtn" type="button">重置全部打卡数据</button>
     </section>
   </main>
   <script src="./app.js"></script>
