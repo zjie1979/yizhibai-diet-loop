@@ -1255,7 +1255,7 @@ document.querySelector("#resetBtn").addEventListener("click", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js");
+    navigator.serviceWorker.register("./sw.js?v=20260722b");
   });
 }
 
