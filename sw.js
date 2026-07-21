@@ -1,10 +1,10 @@
-const CACHE_NAME = "yizhibai-diet-loop-v3";
+const CACHE_NAME = "yizhibai-diet-loop-20260722d1";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=20260722b",
-  "./app.js?v=20260722b",
-  "./manifest.webmanifest?v=20260722b",
+  "./styles.css?v=20260722d1",
+  "./app.js?v=20260722d1",
+  "./manifest.webmanifest?v=20260722d1",
   "./icon.svg",
   "./icon-180.png",
   "./icon-192.png",
