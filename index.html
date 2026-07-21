@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>一只白</title>
+  <meta name="theme-color" content="#3b424c">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="一只白">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" sizes="180x180" href="./icon-180.png">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">非官方整理版</p>
+        <h1>一只白</h1>
+      </div>
+      <button class="icon-button" id="undoBtn" type="button" aria-label="撤回上一天">↶</button>
+    </header>
+
+    <section class="cycle-panel">
+      <div>
+        <span class="label">当前进度</span>
+        <strong id="cycleTitle">第 1 轮 · 第 1 天</strong>
+        <p id="cycleSub">短期餐单循环打卡</p>
+      </div>
+      <div class="meter" aria-label="今日完成度">
+        <span id="percentText">0%</span>
+      </div>
+    </section>
+
+    <section class="plan-panel">
+      <div class="section-head">
+        <h2 id="dayName">今日餐单</h2>
+        <span id="slotCount">0/0</span>
+      </div>
+      <div class="meal-list" id="mealList"></div>
+      <p class="auto-note" id="autoNote">打完所有餐次后，会短暂停留并自动进入下一天。</p>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>循环餐单</h2>
+        <button class="text-button" id="resetBtn" type="button">重置</button>
+      </div>
+      <div class="preview-list" id="previewList"></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>完成记录</h2>
+        <span id="historyCount">0 天</span>
+      </div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+
+    <section class="source-panel">
+      <h2>来源与边界</h2>
+      <p>根据公开网页中“一只白”相关减肥餐单转述整理为可打卡版本，非博主官方授权。餐单偏短期低热量，身体不舒服、经期明显不适、备孕/孕期/哺乳期、疾病或用药期间不要硬跟。</p>
+    </section>
+  </main>
+  <script src="./app.js"></script>
+</body>
+</html>
