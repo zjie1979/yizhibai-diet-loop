@@ -1,5 +1,5 @@
-const STORAGE_KEY = "yizhibaiDietLoop.v2";
-const ADVANCE_DELAY = 900;
+const STORAGE_KEY = "yizhibaiDailyCheckin.v1";
+const LEGACY_STORAGE_KEY = "yizhibaiDietLoop.v2";
 
 const mealPlans = [
   {
@@ -791,472 +791,418 @@ const pendingPlans = [
   },
   {
     title: "20 家减脂期外卖",
-    reason: "公开标题属于外卖推荐清单，不是全天餐单，暂不放入循环打卡。"
+    reason: "公开标题属于外卖推荐清单，不是全天餐单，暂不放入今日打卡餐单。"
   },
   {
     title: "减肥冷知识 / 单一食物 / 注意事项类笔记",
-    reason: "不是全天餐单，已从循环打卡里排除。"
+    reason: "不是全天餐单，已从今日打卡餐单里排除。"
   }
 ];
 
-const categories = ["全部", ...Array.from(new Set(mealPlans.map((plan) => plan.series)))];
-const planById = new Map(mealPlans.map((plan) => [plan.id, plan]));
-const allPlanIds = mealPlans.map((plan) => plan.id);
-
-const state = loadState();
-let advanceTimer = null;
-
-const availableCount = document.querySelector("#availableCount");
-const selectedCount = document.querySelector("#selectedCount");
-const historyTotal = document.querySelector("#historyTotal");
-const cycleTitle = document.querySelector("#cycleTitle");
-const cycleSub = document.querySelector("#cycleSub");
-const percentText = document.querySelector("#percentText");
-const activeTitle = document.querySelector("#activeTitle");
-const activeSub = document.querySelector("#activeSub");
-const slotCount = document.querySelector("#slotCount");
-const mealList = document.querySelector("#mealList");
-const filterBar = document.querySelector("#filterBar");
-const planList = document.querySelector("#planList");
-const detailPanel = document.querySelector("#detailPanel");
-const cycleList = document.querySelector("#cycleList");
-const historyList = document.querySelector("#historyList");
-const historyCount = document.querySelector("#historyCount");
-const historyTotalNode = document.querySelector("#historyTotal");
-const pendingList = document.querySelector("#pendingList");
-const pendingCount = document.querySelector("#pendingCount");
-const autoNote = document.querySelector("#autoNote");
-
-function loadState() {
-  const fallback = {
-    cycleIds: allPlanIds,
-    activeIndex: 0,
-    round: 1,
-    checked: [],
-    history: [],
-    detailId: allPlanIds[0],
-    filter: "全部"
+(function dailyRuntime() {
+  const pendingItems = typeof pendingNotes !== "undefined"
+    ? pendingNotes
+    : (typeof pendingPlans !== "undefined" ? pendingPlans : []);
+  const categories = ["全部", ...Array.from(new Set(mealPlans.map((plan) => plan.series || "其他")))];
+  const planById = new Map(mealPlans.map((plan) => [plan.id, plan]));
+  const nodes = {
+    activePlanName: document.querySelector("#activePlanName"),
+    activePlanDesc: document.querySelector("#activePlanDesc"),
+    progressText: document.querySelector("#progressText"),
+    planCount: document.querySelector("#planCount"),
+    filterBar: document.querySelector("#filterBar"),
+    detailPanel: document.querySelector("#detailPanel"),
+    planList: document.querySelector("#planList"),
+    stepList: document.querySelector("#stepList"),
+    stepCount: document.querySelector("#stepCount"),
+    completeBtn: document.querySelector("#completeBtn"),
+    autoNote: document.querySelector("#autoNote"),
+    historyList: document.querySelector("#historyList"),
+    historyCount: document.querySelector("#historyCount"),
+    pendingList: document.querySelector("#pendingList"),
+    pendingCount: document.querySelector("#pendingCount")
   };
 
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    return normalizeState({ ...fallback, ...stored });
-  } catch {
-    return normalizeState(fallback);
-  }
-}
+  const state = loadState();
 
-function normalizeState(nextState) {
-  const normalized = { ...nextState };
-  const incomingCycle = Array.isArray(normalized.cycleIds) ? normalized.cycleIds : allPlanIds;
-  normalized.cycleIds = Array.from(new Set(incomingCycle)).filter((id) => planById.has(id));
-  normalized.activeIndex = Number.isInteger(normalized.activeIndex) ? normalized.activeIndex : 0;
-  normalized.activeIndex = Math.max(0, Math.min(normalized.activeIndex, Math.max(normalized.cycleIds.length - 1, 0)));
-  normalized.round = Number.isInteger(normalized.round) && normalized.round > 0 ? normalized.round : 1;
-  normalized.checked = Array.isArray(normalized.checked)
-    ? Array.from(new Set(normalized.checked.map(Number))).filter((index) => Number.isInteger(index) && index >= 0)
-    : [];
-  normalized.history = Array.isArray(normalized.history) ? normalized.history.slice(0, 80) : [];
-  normalized.detailId = planById.has(normalized.detailId) ? normalized.detailId : allPlanIds[0];
-  normalized.filter = categories.includes(normalized.filter) ? normalized.filter : "全部";
-  return normalized;
-}
-
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-}
-
-function currentPlan() {
-  if (!state.cycleIds.length) return null;
-  return planById.get(state.cycleIds[state.activeIndex]) || null;
-}
-
-function detailPlan() {
-  return planById.get(state.detailId) || mealPlans[0];
-}
-
-function todayStamp() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function percent() {
-  const plan = currentPlan();
-  if (!plan) return 0;
-  return Math.round((state.checked.length / plan.meals.length) * 100);
-}
-
-function isInCycle(planId) {
-  return state.cycleIds.includes(planId);
-}
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-function renderStats() {
-  availableCount.textContent = mealPlans.length;
-  selectedCount.textContent = state.cycleIds.length;
-  historyTotal.textContent = state.history.length;
-}
-
-function renderProgress() {
-  const plan = currentPlan();
-  const p = percent();
-  document.documentElement.style.setProperty("--progress", `${p}%`);
-  percentText.textContent = `${p}%`;
-
-  if (!plan) {
-    cycleTitle.textContent = "还没有选择循环";
-    cycleSub.textContent = "先从下面餐单库加入想吃的餐单。";
-    activeTitle.textContent = "今日打卡";
-    activeSub.textContent = "已选循环为空，加入至少 1 个餐单后开始。";
-    slotCount.textContent = "0/0";
-    mealList.innerHTML = `<p class="empty">先查看餐单详情，再加入循环。</p>`;
-    autoNote.textContent = "循环为空时不会自动前进。";
-    autoNote.classList.remove("done");
-    return;
+  function defaultState() {
+    const firstId = mealPlans[0]?.id || "";
+    return {
+      activePlanId: firstId,
+      detailId: firstId,
+      filter: "全部",
+      checked: {},
+      history: []
+    };
   }
 
-  state.checked = state.checked.filter((index) => index < plan.meals.length);
-  cycleTitle.textContent = `第 ${state.round} 轮 · ${state.activeIndex + 1}/${state.cycleIds.length}`;
-  cycleSub.textContent = `${plan.series} · ${plan.summary}`;
-  activeTitle.textContent = plan.title;
-  activeSub.textContent = plan.fit;
-  slotCount.textContent = `${state.checked.length}/${plan.meals.length}`;
-  autoNote.classList.toggle("done", p === 100);
-  autoNote.textContent = p === 100
-    ? "当前餐单完成，马上进入下一个所选餐单。"
-    : "打完当前餐单所有餐次后，会短暂停留并自动进入下一份所选餐单。";
+  function loadState() {
+    const base = defaultState();
+    try {
+      const storedRaw = localStorage.getItem(STORAGE_KEY);
+      const stored = storedRaw ? JSON.parse(storedRaw) : {};
+      let legacy = {};
+      if (!storedRaw && typeof LEGACY_STORAGE_KEY !== "undefined") {
+        legacy = JSON.parse(localStorage.getItem(LEGACY_STORAGE_KEY) || "{}");
+      }
 
-  mealList.innerHTML = plan.meals.map((meal, index) => `
-    <button class="meal-button ${state.checked.includes(index) ? "done" : ""}" type="button" data-meal="${index}">
-      <span class="box" aria-hidden="true"></span>
-      <span>
-        <span class="meal-name">${escapeHtml(meal.slot)}</span>
-        <span class="meal-food">${escapeHtml(meal.food)}</span>
-      </span>
-    </button>
-  `).join("");
-}
+      const legacyActiveId = getLegacyActiveId(legacy);
+      const activePlanId = validPlanId(stored.activePlanId || stored.activeId)
+        || validPlanId(legacyActiveId)
+        || base.activePlanId;
+      const detailId = validPlanId(stored.detailId) || activePlanId;
+      const next = {
+        activePlanId,
+        detailId,
+        filter: categories.includes(stored.filter) ? stored.filter : "全部",
+        checked: stored.checked && typeof stored.checked === "object" && !Array.isArray(stored.checked) ? stored.checked : {},
+        history: normalizeHistory(Array.isArray(stored.history) ? stored.history : legacy.history)
+      };
 
-function renderFilters() {
-  filterBar.innerHTML = categories.map((category) => `
-    <button class="filter-chip ${state.filter === category ? "active" : ""}" type="button" data-filter="${escapeHtml(category)}">
-      ${escapeHtml(category)}
-    </button>
-  `).join("");
-}
+      const legacyChecked = Array.isArray(stored.completedMeals)
+        ? stored.completedMeals
+        : (Array.isArray(legacy.checked) ? legacy.checked : []);
+      if (legacyChecked.length) {
+        const plan = planById.get(activePlanId);
+        const indexes = normalizeCheckedIndexes(legacyChecked, plan);
+        if (indexes.length) {
+          const date = todayKey();
+          next.checked[date] ||= {};
+          next.checked[date][activePlanId] ||= indexes;
+        }
+      }
+      return next;
+    } catch {
+      return base;
+    }
+  }
 
-function renderPlanList() {
-  const visiblePlans = state.filter === "全部"
-    ? mealPlans
-    : mealPlans.filter((plan) => plan.series === state.filter);
+  function getLegacyActiveId(legacy) {
+    if (Array.isArray(legacy.cycleIds)) {
+      return legacy.cycleIds[Number.isInteger(legacy.activeIndex) ? legacy.activeIndex : 0];
+    }
+    if (Array.isArray(legacy.selectedIds)) {
+      return legacy.selectedIds[Number.isInteger(legacy.currentIndex) ? legacy.currentIndex : 0];
+    }
+    if (Number.isInteger(legacy.dayIndex)) {
+      return "day-" + (legacy.dayIndex + 1);
+    }
+    return "";
+  }
 
-  planList.innerHTML = visiblePlans.map((plan) => {
-    const inCycle = isInCycle(plan.id);
-    return `
-      <article class="plan-card ${state.detailId === plan.id ? "active" : ""}">
-        <button class="plan-main" type="button" data-detail="${escapeHtml(plan.id)}">
-          <span class="badge">${escapeHtml(plan.series)}</span>
-          <strong>${escapeHtml(plan.title)}</strong>
-          <span>${escapeHtml(plan.summary)}</span>
-          <small>${plan.meals.length} 餐次 · ${escapeHtml(plan.source)}</small>
-        </button>
-        <button class="small-button ${inCycle ? "selected" : ""}" type="button" data-cycle-toggle="${escapeHtml(plan.id)}">
-          ${inCycle ? "移出循环" : "加入循环"}
-        </button>
-      </article>
-    `;
-  }).join("");
-}
+  function normalizeCheckedIndexes(values, plan) {
+    if (!plan) return [];
+    return values.map((value) => {
+      if (Number.isInteger(value)) return value;
+      return plan.meals.findIndex((meal) => meal.slot === value);
+    }).filter((index, pos, arr) => index >= 0 && index < plan.meals.length && arr.indexOf(index) === pos);
+  }
 
-function renderDetail() {
-  const plan = detailPlan();
-  const inCycle = isInCycle(plan.id);
-  detailPanel.innerHTML = `
-    <div class="section-head detail-head">
-      <div>
-        <span class="label">详情预览</span>
-        <h2>${escapeHtml(plan.title)}</h2>
+  function normalizeHistory(items) {
+    if (!Array.isArray(items)) return [];
+    return items.map((item) => {
+      const planId = validPlanId(item.planId || item.id || (Number.isInteger(item.dayIndex) ? "day-" + (item.dayIndex + 1) : ""));
+      const plan = planById.get(planId);
+      const planName = item.planName || item.title || item.dayName || plan?.title || "";
+      if (!planId && !planName) return null;
+      return {
+        date: String(item.date || todayKey()),
+        planId: planId || plan?.id || "",
+        planName: String(planName || "餐单"),
+        steps: Number(item.steps || plan?.meals?.length || 0)
+      };
+    }).filter(Boolean).slice(0, 80);
+  }
+
+  function validPlanId(id) {
+    return planById.has(id) ? id : "";
+  }
+
+  function saveState() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
+
+  function todayKey() {
+    const date = new Date();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${date.getFullYear()}-${month}-${day}`;
+  }
+
+  function getActivePlan() {
+    if (!planById.has(state.activePlanId)) state.activePlanId = mealPlans[0]?.id || "";
+    return planById.get(state.activePlanId);
+  }
+
+  function getDetailPlan() {
+    return planById.get(state.detailId) || getActivePlan() || mealPlans[0];
+  }
+
+  function getCheckedSet() {
+    const plan = getActivePlan();
+    if (!plan) return new Set();
+    const key = todayKey();
+    state.checked[key] ||= {};
+    state.checked[key][plan.id] ||= [];
+    const indexes = normalizeCheckedIndexes(state.checked[key][plan.id], plan);
+    state.checked[key][plan.id] = indexes;
+    return new Set(indexes);
+  }
+
+  function setCheckedSet(set) {
+    const plan = getActivePlan();
+    if (!plan) return;
+    const key = todayKey();
+    state.checked[key] ||= {};
+    state.checked[key][plan.id] = [...set].sort((a, b) => a - b);
+    saveState();
+  }
+
+  function getProgress() {
+    const plan = getActivePlan();
+    if (!plan) return { done: 0, total: 0, percent: 0 };
+    const checked = getCheckedSet();
+    const done = checked.size;
+    const total = plan.meals.length;
+    return { done, total, percent: total ? Math.round((done / total) * 100) : 0 };
+  }
+
+  function isRecorded(plan) {
+    const date = todayKey();
+    return state.history.some((item) => item.date === date && item.planId === plan.id);
+  }
+
+  function renderStatus() {
+    const plan = getActivePlan();
+    const progress = getProgress();
+    nodes.activePlanName.textContent = plan ? plan.title : "未选择餐单";
+    nodes.activePlanDesc.textContent = plan ? `${plan.series || "餐单"} · ${plan.summary || ""}` : "先从餐单库选择今天要执行的一份。";
+    nodes.progressText.textContent = `${progress.percent}%`;
+    document.documentElement.style.setProperty("--progress", `${progress.percent}%`);
+  }
+
+  function renderFilters() {
+    if (!nodes.filterBar) return;
+    nodes.filterBar.innerHTML = categories.map((category) => `
+      <button class="filter-chip ${state.filter === category ? "active" : ""}" type="button" data-filter="${escapeHtml(category)}">${escapeHtml(category)}</button>
+    `).join("");
+  }
+
+  function renderDetail() {
+    const plan = getDetailPlan();
+    if (!plan) {
+      nodes.detailPanel.innerHTML = `<p class="empty">还没有餐单。</p>`;
+      return;
+    }
+    const selected = state.activePlanId === plan.id;
+    nodes.detailPanel.innerHTML = `
+      <span class="detail-label">详情预览</span>
+      <h2>${escapeHtml(plan.title)}</h2>
+      <p>${escapeHtml(plan.fit || plan.summary || "")}</p>
+      <div class="meta-row">
+        <span>${escapeHtml(plan.series || "餐单")}</span>
+        <span>${plan.meals.length} 餐次</span>
+        <span>${escapeHtml(plan.source || "整理版")}</span>
+        <span>${selected ? "今日餐单" : "未选择"}</span>
       </div>
-      <span class="badge strong">${escapeHtml(plan.series)}</span>
-    </div>
-    <p class="panel-sub">${escapeHtml(plan.summary)}</p>
-    <div class="detail-meta">
-      <span>${plan.meals.length} 餐次</span>
-      <span>${escapeHtml(plan.source)}</span>
-      <span>${inCycle ? "已在循环" : "未加入"}</span>
-    </div>
-    <div class="detail-meals">
-      ${plan.meals.map((meal) => `
-        <div class="detail-meal">
-          <strong>${escapeHtml(meal.slot)}</strong>
-          <span>${escapeHtml(meal.food)}</span>
-        </div>
-      `).join("")}
-    </div>
-    <div class="rule-list">
-      ${plan.rules.map((rule) => `<span>${escapeHtml(rule)}</span>`).join("")}
-    </div>
-    <div class="button-row">
-      <button class="primary-button" type="button" data-set-current="${escapeHtml(plan.id)}">
-        ${inCycle ? "设为今天打卡" : "加入并设为今天"}
-      </button>
-      <button class="secondary-button" type="button" data-cycle-toggle="${escapeHtml(plan.id)}">
-        ${inCycle ? "从循环移出" : "加入循环"}
-      </button>
-    </div>
-  `;
-}
-
-function renderCycleList() {
-  if (!state.cycleIds.length) {
-    cycleList.innerHTML = `<p class="empty">还没有选择餐单。可以在上面的餐单详情里加入，也可以一键全部加入。</p>`;
-    return;
-  }
-
-  cycleList.innerHTML = state.cycleIds.map((planId, index) => {
-    const plan = planById.get(planId);
-    const active = index === state.activeIndex;
-    return `
-      <article class="cycle-item ${active ? "active" : ""}">
-        <button class="cycle-main" type="button" data-set-current="${escapeHtml(plan.id)}">
-          <span>${index + 1}</span>
-          <strong>${escapeHtml(plan.title)}</strong>
-          <small>${active ? "今天打卡" : escapeHtml(plan.series)}</small>
-        </button>
-        <div class="cycle-actions">
-          <button type="button" data-move="${index}" data-direction="-1" aria-label="上移">↑</button>
-          <button type="button" data-move="${index}" data-direction="1" aria-label="下移">↓</button>
-          <button type="button" data-remove-cycle="${escapeHtml(plan.id)}" aria-label="移出">×</button>
-        </div>
-      </article>
+      <div class="detail-meals">
+        ${plan.meals.map((meal) => `
+          <div>
+            <strong>${escapeHtml(meal.slot)}${meal.tag ? " · " + escapeHtml(meal.tag) : ""}</strong>
+            <span>${escapeHtml(meal.food)}</span>
+          </div>
+        `).join("")}
+      </div>
+      <ul class="detail-rules">
+        ${(plan.rules || []).map((rule) => `<li>${escapeHtml(rule)}</li>`).join("")}
+      </ul>
+      <div class="detail-actions">
+        <button class="primary-button" type="button" data-set-current="${escapeHtml(plan.id)}">${selected ? "今天已选" : "设为今天"}</button>
+        <a class="secondary-link" href="#todayPanel">去打卡</a>
+      </div>
     `;
-  }).join("");
-}
-
-function renderHistory() {
-  historyCount.textContent = `${state.history.length} 天`;
-  historyTotalNode.textContent = state.history.length;
-  if (!state.history.length) {
-    historyList.innerHTML = `<p class="empty">还没有完成记录。</p>`;
-    return;
   }
 
-  historyList.innerHTML = state.history.slice(0, 12).map((item) => `
-    <div class="history-item">
-      <strong>${escapeHtml(item.planTitle)}</strong>
-      <span>${escapeHtml(item.date)} · 第 ${item.round} 轮完成</span>
-    </div>
-  `).join("");
-}
-
-function renderPending() {
-  pendingCount.textContent = `${pendingPlans.length} 个`;
-  pendingList.innerHTML = pendingPlans.map((item) => `
-    <div class="pending-item">
-      <strong>${escapeHtml(item.title)}</strong>
-      <span>${escapeHtml(item.reason)}</span>
-    </div>
-  `).join("");
-}
-
-function render() {
-  renderStats();
-  renderProgress();
-  renderFilters();
-  renderPlanList();
-  renderDetail();
-  renderCycleList();
-  renderHistory();
-  renderPending();
-}
-
-function addPlanToCycle(planId) {
-  if (!planById.has(planId) || state.cycleIds.includes(planId)) return;
-  state.cycleIds.push(planId);
-  if (state.cycleIds.length === 1) {
-    state.activeIndex = 0;
-    state.checked = [];
-  }
-}
-
-function removePlanFromCycle(planId) {
-  const index = state.cycleIds.indexOf(planId);
-  if (index === -1) return;
-  const wasActive = index === state.activeIndex;
-  state.cycleIds = state.cycleIds.filter((id) => id !== planId);
-
-  if (!state.cycleIds.length) {
-    state.activeIndex = 0;
-    state.checked = [];
-    return;
+  function renderPlans() {
+    const visible = state.filter === "全部" ? mealPlans : mealPlans.filter((plan) => plan.series === state.filter);
+    nodes.planCount.textContent = `${visible.length}/${mealPlans.length} 个`;
+    nodes.planList.innerHTML = visible.map((plan) => {
+      const selected = plan.id === state.activePlanId;
+      return `
+        <article class="plan-card ${state.detailId === plan.id ? "active" : ""}">
+          <button class="plan-main" type="button" data-detail="${escapeHtml(plan.id)}">
+            <span class="badge ${selected ? "strong" : ""}">${escapeHtml(plan.series || "餐单")}</span>
+            <strong>${escapeHtml(plan.title)}</strong>
+            <em>${escapeHtml(plan.summary || "")}</em>
+            <small>${plan.meals.length} 餐次 · ${escapeHtml(plan.source || "整理版")}</small>
+          </button>
+          <button class="small-action ${selected ? "selected" : ""}" type="button" data-set-current="${escapeHtml(plan.id)}">${selected ? "今日" : "选今天"}</button>
+        </article>
+      `;
+    }).join("");
   }
 
-  if (index < state.activeIndex) {
-    state.activeIndex -= 1;
-  } else if (wasActive) {
-    state.activeIndex = Math.min(state.activeIndex, state.cycleIds.length - 1);
-    state.checked = [];
+  function renderSteps() {
+    const plan = getActivePlan();
+    const progress = getProgress();
+    const checked = getCheckedSet();
+    const recorded = plan ? isRecorded(plan) : false;
+    nodes.stepCount.textContent = `${progress.done}/${progress.total}`;
+    if (!plan) {
+      nodes.stepList.innerHTML = `<p class="empty">先从餐单库选择今天要打卡的餐单。</p>`;
+      nodes.completeBtn.disabled = true;
+      return;
+    }
+    nodes.stepList.innerHTML = plan.meals.map((meal, index) => `
+      <button class="check-row ${checked.has(index) ? "done" : ""}" type="button" data-step="${index}">
+        <span class="box" aria-hidden="true"></span>
+        <span>
+          <span class="step-name">${escapeHtml(meal.slot)}${meal.tag ? `<span class="chip">${escapeHtml(meal.tag)}</span>` : ""}</span>
+          <span class="step-food">${escapeHtml(meal.food)}</span>
+        </span>
+      </button>
+    `).join("");
+    nodes.completeBtn.disabled = progress.done !== progress.total || recorded;
+    nodes.completeBtn.textContent = recorded ? "今天已保存" : "完成今天";
+    nodes.autoNote.textContent = recorded
+      ? "今天记录已保存；明天重新选择想吃的餐单。"
+      : (progress.done === progress.total ? "已打完，点“完成今天”保存记录。" : "不会自动进入下一份；明天重新选择。");
+    nodes.autoNote.classList.toggle("done", recorded || progress.done === progress.total);
   }
-}
 
-function toggleCycle(planId) {
-  if (isInCycle(planId)) {
-    removePlanFromCycle(planId);
-  } else {
-    addPlanToCycle(planId);
+  function renderHistory() {
+    if (nodes.historyCount) nodes.historyCount.textContent = `${state.history.length} 天`;
+    const items = state.history.slice(0, 12);
+    if (!items.length) {
+      nodes.historyList.innerHTML = `<p class="empty">还没有完成记录。</p>`;
+      return;
+    }
+    nodes.historyList.innerHTML = items.map((item) => `
+      <article class="history-item">
+        <strong>${escapeHtml(item.planName)}</strong>
+        <span>${escapeHtml(item.date)} 完成 · ${Number(item.steps) || 0} 项</span>
+      </article>
+    `).join("");
   }
-}
 
-function setCurrent(planId) {
-  if (!planById.has(planId)) return;
-  addPlanToCycle(planId);
-  const index = state.cycleIds.indexOf(planId);
-  if (index !== -1 && index !== state.activeIndex) {
-    state.activeIndex = index;
-    state.checked = [];
+  function renderPending() {
+    if (!nodes.pendingList || !nodes.pendingCount) return;
+    nodes.pendingCount.textContent = `${pendingItems.length} 个`;
+    nodes.pendingList.innerHTML = pendingItems.length
+      ? pendingItems.map((item) => `
+        <article class="pending-item">
+          <strong>${escapeHtml(item.title)}</strong>
+          <span>${escapeHtml(item.reason)}</span>
+        </article>
+      `).join("")
+      : `<p class="empty">暂无待补说明。</p>`;
   }
-  state.detailId = planId;
-}
 
-function moveCycleItem(index, direction) {
-  const nextIndex = index + direction;
-  if (index < 0 || nextIndex < 0 || index >= state.cycleIds.length || nextIndex >= state.cycleIds.length) return;
-  const nextCycle = [...state.cycleIds];
-  [nextCycle[index], nextCycle[nextIndex]] = [nextCycle[nextIndex], nextCycle[index]];
-  state.cycleIds = nextCycle;
-
-  if (state.activeIndex === index) {
-    state.activeIndex = nextIndex;
-  } else if (state.activeIndex === nextIndex) {
-    state.activeIndex = index;
+  function render() {
+    renderStatus();
+    renderFilters();
+    renderDetail();
+    renderPlans();
+    renderSteps();
+    renderHistory();
+    renderPending();
   }
-}
 
-function advancePlan() {
-  const plan = currentPlan();
-  if (!plan) return;
+  function setCurrent(planId, scroll) {
+    if (!planById.has(planId)) return;
+    state.activePlanId = planId;
+    state.detailId = planId;
+    saveState();
+    render();
+    if (scroll) document.querySelector("#todayPanel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
-  state.history.unshift({
-    date: todayStamp(),
-    round: state.round,
-    planId: plan.id,
-    planTitle: plan.title
+  function completeToday() {
+    const plan = getActivePlan();
+    if (!plan) return;
+    const progress = getProgress();
+    if (progress.done !== progress.total) return;
+    const date = todayKey();
+    state.history = state.history.filter((item) => !(item.date === date && item.planId === plan.id));
+    state.history.unshift({
+      date,
+      planId: plan.id,
+      planName: plan.title,
+      steps: plan.meals.length
+    });
+    state.history = state.history.slice(0, 80);
+    saveState();
+    render();
+  }
+
+  function resetToday() {
+    const plan = getActivePlan();
+    if (!plan) return;
+    const date = todayKey();
+    if (state.checked[date]) state.checked[date][plan.id] = [];
+    state.history = state.history.filter((item) => !(item.date === date && item.planId === plan.id));
+    saveState();
+    render();
+  }
+
+  function clearHistory() {
+    state.history = [];
+    saveState();
+    render();
+  }
+
+  function resetAll() {
+    if (!window.confirm("确认清空全部打卡数据？")) return;
+    Object.assign(state, defaultState());
+    saveState();
+    render();
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  document.addEventListener("click", (event) => {
+    const detailButton = event.target.closest("[data-detail]");
+    const setButton = event.target.closest("[data-set-current]");
+    const filterButton = event.target.closest("[data-filter]");
+    const stepButton = event.target.closest("[data-step]");
+    if (detailButton) {
+      state.detailId = detailButton.dataset.detail;
+      saveState();
+      render();
+    }
+    if (setButton) setCurrent(setButton.dataset.setCurrent, true);
+    if (filterButton) {
+      state.filter = filterButton.dataset.filter;
+      saveState();
+      render();
+    }
+    if (stepButton) {
+      const index = Number(stepButton.dataset.step);
+      const checked = getCheckedSet();
+      if (checked.has(index)) checked.delete(index);
+      else checked.add(index);
+      setCheckedSet(checked);
+      render();
+    }
   });
-  state.history = state.history.slice(0, 80);
-  state.activeIndex += 1;
 
-  if (state.activeIndex >= state.cycleIds.length) {
-    state.activeIndex = 0;
-    state.round += 1;
+  document.querySelector("#completeBtn")?.addEventListener("click", completeToday);
+  document.querySelector("#resetTodayBtn")?.addEventListener("click", resetToday);
+  document.querySelector("#clearHistoryBtn")?.addEventListener("click", clearHistory);
+  document.querySelector("#resetAllBtn")?.addEventListener("click", resetAll);
+
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js?v=20260722d1");
+    });
   }
 
-  state.checked = [];
-  saveState();
   render();
-}
-
-mealList.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-meal]");
-  const plan = currentPlan();
-  if (!button || !plan) return;
-
-  const index = Number(button.dataset.meal);
-  if (state.checked.includes(index)) {
-    state.checked = state.checked.filter((item) => item !== index);
-  } else {
-    state.checked = [...state.checked, index].sort((a, b) => a - b);
-  }
-
-  clearTimeout(advanceTimer);
-  saveState();
-  render();
-
-  if (state.checked.length === plan.meals.length) {
-    advanceTimer = setTimeout(advancePlan, ADVANCE_DELAY);
-  }
-});
-
-document.addEventListener("click", (event) => {
-  const filter = event.target.closest("[data-filter]");
-  const detail = event.target.closest("[data-detail]");
-  const cycleToggle = event.target.closest("[data-cycle-toggle]");
-  const setCurrentButton = event.target.closest("[data-set-current]");
-  const removeCycle = event.target.closest("[data-remove-cycle]");
-  const moveButton = event.target.closest("[data-move]");
-
-  if (filter) {
-    state.filter = filter.dataset.filter;
-  } else if (detail) {
-    state.detailId = detail.dataset.detail;
-  } else if (cycleToggle) {
-    toggleCycle(cycleToggle.dataset.cycleToggle);
-  } else if (setCurrentButton) {
-    setCurrent(setCurrentButton.dataset.setCurrent);
-  } else if (removeCycle) {
-    removePlanFromCycle(removeCycle.dataset.removeCycle);
-  } else if (moveButton) {
-    moveCycleItem(Number(moveButton.dataset.move), Number(moveButton.dataset.direction));
-  } else {
-    return;
-  }
-
-  clearTimeout(advanceTimer);
-  saveState();
-  render();
-});
-
-document.querySelector("#addAllBtn").addEventListener("click", () => {
-  const activePlan = currentPlan();
-  state.cycleIds = [...allPlanIds];
-  state.activeIndex = activePlan ? state.cycleIds.indexOf(activePlan.id) : 0;
-  state.checked = [];
-  saveState();
-  render();
-});
-
-document.querySelector("#clearCycleBtn").addEventListener("click", () => {
-  state.cycleIds = [];
-  state.activeIndex = 0;
-  state.checked = [];
-  saveState();
-  render();
-});
-
-document.querySelector("#undoBtn").addEventListener("click", () => {
-  const last = state.history.shift();
-  if (!last) return;
-  addPlanToCycle(last.planId);
-  state.activeIndex = state.cycleIds.indexOf(last.planId);
-  state.round = last.round;
-  state.checked = [];
-  state.detailId = last.planId;
-  saveState();
-  render();
-});
-
-document.querySelector("#resetBtn").addEventListener("click", () => {
-  state.cycleIds = [...allPlanIds];
-  state.activeIndex = 0;
-  state.round = 1;
-  state.checked = [];
-  state.history = [];
-  state.detailId = allPlanIds[0];
-  state.filter = "全部";
-  saveState();
-  render();
-});
-
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js?v=20260722b");
-  });
-}
-
-render();
+})();
