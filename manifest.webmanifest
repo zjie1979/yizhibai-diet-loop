@@ -1,7 +1,7 @@
 {
   "name": "一只白",
   "short_name": "一只白",
-  "description": "一只白减肥餐单循环打卡 PWA，非官方整理版。",
+  "description": "一只白减肥餐单每日自选打卡 PWA，非官方整理版。",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
